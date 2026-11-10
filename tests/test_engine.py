@@ -1,7 +1,7 @@
 import os
 import unittest
 import numpy as np
-from aspe import ASPEEngine, ASPEKey
+from privatekb import PrivateKBEngine, PrivateKBKey
 
 
 class TestASPEEngine(unittest.TestCase):
@@ -9,7 +9,7 @@ class TestASPEEngine(unittest.TestCase):
     def setUp(self):
         """Set up test environment and engine instance before each test."""
         self.dimension = 4
-        self.engine = ASPEEngine(dimension=self.dimension)
+        self.engine = PrivateKBEngine(dimension=self.dimension)
         self.key = self.engine.generate_keys()
         self.temp_key_file = "test_aspe_key.json"
 
@@ -30,7 +30,7 @@ class TestASPEEngine(unittest.TestCase):
         self.key.save_keys(self.temp_key_file)
         self.assertTrue(os.path.exists(self.temp_key_file))
 
-        loaded_key = ASPEKey.load_keys(self.temp_key_file)
+        loaded_key = PrivateKBKey.load_keys(self.temp_key_file)
         
         np.testing.assert_array_almost_equal(self.key.M, loaded_key.M)
         np.testing.assert_array_almost_equal(self.key.M_inv, loaded_key.M_inv)

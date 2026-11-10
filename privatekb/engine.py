@@ -6,8 +6,8 @@ from typing import Union, Tuple, List
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
-class ASPEKey:
-    """Container for ASPE transformation matrices, splitting vector, and AES key."""
+class PrivateKBKey:
+    """Container for PrivateKB transformation matrices, splitting vector, and AES payload key."""
 
     def __init__(self, M: np.ndarray, M_inv: np.ndarray, S: np.ndarray, aes_key: bytes):
         self.M = M                # (2d, 2d) Secret Transformation Matrix
@@ -31,7 +31,7 @@ class ASPEKey:
             json.dump(data, f, indent=2)
 
     @classmethod
-    def load_keys(cls, filepath: str) -> "ASPEKey":
+    def load_keys(cls, filepath: str) -> "PrivateKBKey":
         """Loads key configuration from a local JSON file."""
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Key file not found at: {filepath}")
@@ -53,8 +53,8 @@ class ASPEKey:
         return cls(M=M, M_inv=M_inv, S=S, aes_key=aes_key)
 
 
-class ASPEEngine:
-    """ASPE Obfuscation Engine optimized for Cosine Similarity (Unit Vectors)."""
+class PrivateKBEngine:
+    """Client-Side Vector Obfuscation & Encrypted Knowledge Base Engine."""
 
     def __init__(self, dimension: int):
         """
@@ -70,7 +70,7 @@ class ASPEEngine:
             raise ValueError("Cannot normalize a zero vector.")
         return vector / norm
 
-    def generate_keys(self) -> ASPEKey:
+    def generate_keys(self) -> PrivateKBKey:
         """Generates secret matrices (M, M^-1), splitting vector (S), and AES key."""
         while True:
             M = np.random.randn(self.ext_dim, self.ext_dim)
@@ -82,17 +82,18 @@ class ASPEEngine:
         S = np.random.randint(0, 2, size=self.ext_dim)
         aes_key = AESGCM.generate_key(bit_length=256)
 
-        return ASPEKey(M=M, M_inv=M_inv, S=S, aes_key=aes_key)
+        return PrivateKBKey(M=M, M_inv=M_inv, S=S, aes_key=aes_key)
 
     def encrypt_record(
-        self, key: ASPEKey, vector: Union[List[float], np.ndarray], text: str
+        self, key: PrivateKBKey, vector: Union[List[float], np.ndarray], text: str
     ) -> Tuple[List[float], str]:
         """
-        Normalizes document vector to unit length, obfuscates it, and encrypts text payload via AES-256-GCM.
+        Normalizes document vector to unit length, obfuscates it via matrix transformation,
+        and encrypts text payload via AES-256-GCM.
         
-        :param key: Active ASPEKey instance
-        :param vector: Original embedding vector (will be auto-normalized to unit vector)
-        :param text: Text content to encrypt
+        :param key: Active PrivateKBKey instance
+        :param vector: Original embedding vector (auto-normalized to unit vector)
+        :param text: Plaintext document content to encrypt
         :return: (obfuscated_vector_2d, base64_encrypted_text)
         """
         v = np.array(vector, dtype=np.float64)
@@ -102,7 +103,7 @@ class ASPEEngine:
         # 1. Normalize to unit vector for cosine similarity
         v = self._normalize(v)
 
-        # 2. ASPE Dimension Splitting
+        # 2. Vector Dimension Splitting
         v_ext = np.zeros(self.ext_dim, dtype=np.float64)
         for i in range(self.dim):
             if key.S[i] == 1:
@@ -130,13 +131,13 @@ class ASPEEngine:
         return protected_vector.tolist(), protected_msg
 
     def transform_query(
-        self, key: ASPEKey, vector: Union[List[float], np.ndarray]
+        self, key: PrivateKBKey, vector: Union[List[float], np.ndarray]
     ) -> List[float]:
         """
-        Normalizes query vector to unit length and transforms it via M^-1.
+        Normalizes query vector to unit length and transforms it via matrix M^-1.
         
-        :param key: Active ASPEKey instance
-        :param vector: Search query vector (will be auto-normalized to unit vector)
+        :param key: Active PrivateKBKey instance
+        :param vector: Search query vector (auto-normalized to unit vector)
         :return: obfuscated_query_vector_2d
         """
         q = np.array(vector, dtype=np.float64)
@@ -146,7 +147,7 @@ class ASPEEngine:
         # 1. Normalize to unit vector for cosine similarity
         q = self._normalize(q)
 
-        # 2. ASPE Dimension Splitting
+        # 2. Vector Dimension Splitting
         q_ext = np.zeros(self.ext_dim, dtype=np.float64)
         for i in range(self.dim):
             if key.S[i] == 0:
@@ -162,7 +163,7 @@ class ASPEEngine:
 
         return protected_query.tolist()
 
-    def decrypt_payload(self, key: ASPEKey, encrypted_msg: str) -> str:
+    def decrypt_payload(self, key: PrivateKBKey, encrypted_msg: str) -> str:
         """Decrypts base64 AES-GCM ciphertext payload back to plaintext string."""
         try:
             raw_json = base64.b64decode(encrypted_msg.encode('utf-8')).decode('utf-8')

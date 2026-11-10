@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aspe-engine"
+name = "private-kb"
 version = "0.1.0"
-description = "Asymmetric Scalar Product Preserving Encryption (ASPE) for obfuscated vector similarity search."
+description = "Client-side vector obfuscation and payload encryption for secure RAG knowledge bases."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }

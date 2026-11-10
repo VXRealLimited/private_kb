@@ -1,20 +1,20 @@
-# ASPE Engine (`aspe-engine`)
+# PrivateKB (`private-kb`)
 
-A lightweight, high-performance Python library for building **Zero-Trust & Privacy-Preserving Retrieval-Augmented Generation (RAG)** systems using **Asymmetric Scalar Product Preserving Encryption (ASPE)** combined with **AES-256-GCM** payload encryption.
+A lightweight, high-performance Python library for building **Zero-Trust & Privacy-Preserving Retrieval-Augmented Generation (RAG)** systems using vector obfuscation combined with **AES-256-GCM** payload encryption.
 
-Our solution features a **Client-Side Vector Obfuscation Layer (ASPE)**. Before any knowledge data reaches the cloud host, raw text is encrypted using standard AES-256, and vector embeddings undergo a private matrix transformation locally on your network. The cloud host executes similarity matches over obfuscated vector space without ever holding the decryption key or seeing original vector structures. This enables full cloud scalability across any provider while preventing direct data disclosure.
+Our solution features a **Client-Side Vector Obfuscation Layer**. Before any knowledge data reaches the cloud host, raw text is encrypted using standard AES-256, and vector embeddings undergo a private transformation locally on your network. The cloud host executes similarity matches over obfuscated vector space without ever holding the decryption key or seeing original vector structures. This enables full cloud scalability across any provider while preventing direct data disclosure.
 
 ---
 
 ## Architectural Overview: Secure RAG Pipeline
 
-Standard RAG architectures require sending sensitive company documents and raw embedding vectors to third-party vector databases. **`aspe-engine` sits between your data source and the cloud**, keeping plaintexts and raw vector topologies strictly inside your private network perimeter.
+Standard RAG architectures require sending sensitive company documents and raw embedding vectors to third-party vector databases. **`PrivateKB` sits between your data source and the cloud**, keeping plaintexts and raw vector topologies strictly inside your private network perimeter.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User as User / Client App
-    participant Gateway as Client Gateway (ASPE Engine)
+    participant Gateway as Client Gateway (PrivateKB Engine)
     participant Cloud as Cloud Vector DB (pgvector / Qdrant)
     participant LLM as LLM Service (Local / API)
 
@@ -29,18 +29,18 @@ sequenceDiagram
 
     Note over Gateway: Ingestion Phase
     User->>Gateway: 1. Send Raw Document Text
-    Note over Gateway: Generate Embedding Vector (v)<br/>Obfuscate Vector: p' = Mᵀv<br/>Encrypt Payload: AES-256-GCM
-    Gateway->>Cloud: 2. Store Obfuscated Vector (p') + Encrypted Payload
+    Note over Gateway: Generate Embedding Vector<br/>Obfuscate Vector locally<br/>Encrypt Payload (AES-256)
+    Gateway->>Cloud: 2. Store Obfuscated Vector + Encrypted Payload
 
     Note over Gateway: Query Phase
     User->>Gateway: 3. Query: "What is the project budget?"
-    Note over Gateway: Generate Query Vector (q)<br/>Transform Query: q' = M⁻¹q
-    Gateway->>Cloud: 4. Send Obfuscated Query Vector (q')
-    Note over Cloud: Execute Dot-Product Similarity Search<br/>(Calculates q' · p' over unit vectors)
+    Note over Gateway: Generate Query Vector<br/>Transform Query Vector locally
+    Gateway->>Cloud: 4. Send Obfuscated Query Vector
+    Note over Cloud: Execute Similarity Search<br/>(Calculates dot-product match)
     Cloud-->>Gateway: 5. Return Top-K Encrypted Blobs + Scores
 
     Note over Gateway: Generation Phase
-    Note over Gateway: Decrypt Payload locally using AES Secret Key
+    Note over Gateway: Decrypt Payload locally using secret key
     Gateway->>LLM: 6. Pass Decrypted Context + User Query
     LLM-->>User: 7. Return Final Answer
 ```
@@ -50,9 +50,9 @@ sequenceDiagram
 ## Key Features for Private Knowledge Bases
 
 - **Universal Cloud Portability:** Deploy to any budget virtual private server or vector database (`pgvector`, Qdrant, Milvus, FAISS, Pinecone) without requiring specialized hardware enclaves (like AWS Nitro or Intel SGX).
-- **Zero Raw Data Disclosure:** Cloud providers only store high-dimensional transformed floating-point arrays ($2d$) and encrypted Base64 payloads.
+- **Zero Raw Data Disclosure:** Cloud providers only store high-dimensional transformed floating-point arrays and encrypted Base64 payloads.
 - **Native Cosine Similarity:** Automatic unit vector normalization ensures cloud-side inner products mathematically match exact cosine similarity rankings.
-- **Client-Side Data Sovereignty:** Cryptographic transformation matrices ($M, M^{-1}$) and 256-bit AES keys never leave your application boundary.
+- **Client-Side Data Sovereignty:** Cryptographic transformation keys and 256-bit AES keys never leave your application boundary.
 - **Key Serialization:** Native, secure loading/saving of client keypairs to disk.
 
 ---
@@ -73,61 +73,60 @@ pip install -e .
 
 ## End-to-End RAG Integration Example
 
-Below is a complete workflow demonstrating document ingestion, obfuscated cloud search, and local context preparation for an LLM:
+Below is a complete workflow demonstrating how `PrivateKB` protects your data during document ingestion, query retrieval, and LLM context generation:
 
 ```python
 import os
 import numpy as np
-from aspe import ASPEEngine, ASPEKey
+from privatekb import PrivateKBEngine, PrivateKBKey
 
-KEY_FILE = "aspe_rag_secrets.json"
-EMBEDDING_DIM = 1536  # e.g., OpenAI text-embedding-3-small
+KEY_FILE = "private_kb_secrets.json"
+EMBEDDING_DIM = 1536  # Length of raw vector embedding (e.g., OpenAI)
 
-# 1. Initialize Engine & Keys locally
-engine = ASPEEngine(dimension=EMBEDDING_DIM)
+# 1. Initialize Engine & Keypair locally
+engine = PrivateKBEngine(dimension=EMBEDDING_DIM)
 
 if not os.path.exists(KEY_FILE):
     key = engine.generate_keys()
     key.save_keys(KEY_FILE)
 else:
-    key = ASPEKey.load_keys(KEY_FILE)
+    key = PrivateKBKey.load_keys(KEY_FILE)
 
 # -------------------------------------------------------------------
-# STEP 1: Ingestion Phase (Private Knowledge Base Upload)
+# STEP 1: Client-Side Ingestion (Encrypt Document & Obfuscate Vector)
 # -------------------------------------------------------------------
 raw_doc_text = "Project X launch date is scheduled for Q4 2026 with a budget of $5M."
 
-# Generate raw vector locally using your preferred model (OpenAI, HuggingFace, etc.)
+# Generate embedding vector locally (using OpenAI, HuggingFace, etc.)
 raw_doc_vector = np.random.randn(EMBEDDING_DIM).tolist()
 
-# Obfuscate vector (dim 1536 -> 3072) and AES-256 encrypt text
+# Obfuscate vector and encrypt text payload locally
 obfuscated_doc_vector, encrypted_payload = engine.encrypt_record(
     key=key,
     vector=raw_doc_vector,
     text=raw_doc_text
 )
 
-# Upload `obfuscated_doc_vector` and `encrypted_payload` to your Cloud Vector DB
-# (e.g., db.insert(vector=obfuscated_doc_vector, payload=encrypted_payload))
+# -> Now safely upload `obfuscated_doc_vector` and `encrypted_payload` to your Cloud Vector DB.
 
 # -------------------------------------------------------------------
-# STEP 2: Retrieval Phase (Secure User Query)
+# STEP 2: Client-Side Retrieval (Transform Search Query)
 # -------------------------------------------------------------------
 user_query = "What is the budget for Project X?"
 raw_query_vector = np.random.randn(EMBEDDING_DIM).tolist()
 
-# Transform query vector locally using inverse matrix M^-1
+# Transform query vector into the protected space for searching
 obfuscated_query_vector = engine.transform_query(key, raw_query_vector)
 
-# Send `obfuscated_query_vector` to Cloud Vector DB to execute Top-K Search
-# The cloud engine ranks documents using standard dot-product similarity
+# -> Send `obfuscated_query_vector` to Cloud Vector DB to perform standard vector search.
+# The cloud calculates similarity between vectors without knowing raw values.
 similarity_score = np.dot(obfuscated_query_vector, obfuscated_doc_vector)
 print(f"[Cloud Vector Search] Relevance Score: {similarity_score:.4f}")
 
 # -------------------------------------------------------------------
-# STEP 3: Generation Phase (Local Decryption for LLM Context)
+# STEP 3: Client-Side Generation (Decrypt Context for LLM)
 # -------------------------------------------------------------------
-# Decrypt top search results on client side before passing to LLM
+# Decrypt top search results locally before building the final prompt
 decrypted_context = engine.decrypt_payload(key, encrypted_payload)
 
 prompt_for_llm = f"""
@@ -137,7 +136,7 @@ Context: {decrypted_context}
 Question: {user_query}
 """
 
-print(f"\n[Client-Side Ready Prompt]:\n{prompt_for_llm}")
+print(f"\n[Client-Side Prompt for LLM]:\n{prompt_for_llm}")
 ```
 
 ---
@@ -148,4 +147,22 @@ Run the test suite to verify key generation, vector normalization, matrix persis
 
 ```bash
 python -m unittest discover -s tests
+```
+
+---
+
+## Theoretical Foundation & Citation
+
+The vector obfuscation scheme implemented in `PrivateKB` is based on **Asymmetric Scalar Product Preserving Encryption (ASPE)** originally proposed by Wong et al. (SIGMOD 2009).
+
+```bibtex
+@inproceedings{wong2009secure,
+  title={Secure k-nearest neighbor query on encrypted data in cloud computing},
+  author={Wong, Wai Kit and Cheung, David Wai-Lok and Kao, Ben and Mamoulis, Nikos},
+  booktitle={Proceedings of the 2009 ACM SIGMOD International Conference on Management of Data},
+  pages={563--574},
+  year={2009},
+  organization={ACM},
+  doi={10.1145/1559845.1559905}
+}
 ```
