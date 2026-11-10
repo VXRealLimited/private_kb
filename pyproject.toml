@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aspe-engine"
+version = "0.1.0"
+description = "Asymmetric Scalar Product Preserving Encryption (ASPE) for obfuscated vector similarity search."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Wong Wai Kit", email = "waikit.wong@vxreal.com" }
+]
+dependencies = [
+    "numpy>=1.21.0",
+    "cryptography>=3.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aspe*"]
